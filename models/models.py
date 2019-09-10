@@ -9,6 +9,8 @@ import traceback
 from odoo.exceptions import AccessError, ValidationError, Warning
 from odoo.tools.safe_eval import safe_eval, test_python_expr
 import threading
+import requests
+from requests.auth import HTTPBasicAuth
 
 
 _logger = logging.getLogger(__name__)
@@ -34,7 +36,23 @@ class RabbitmqSever(models.Model):
     model_id = fields.Many2one("ir.model", "回调模型")
     code = fields.Text("回调方法")
     state = fields.Selection(
-        [('stopped', '已停止'), ('running', '运行中')], string="状态")
+        [('stopped', '已停止'), ('running', '运行中')], string="状态", compute="_get_state", default="stopped")
+
+    @api.one
+    def _get_state(self):
+        """获取状态"""
+        try:
+            res = requests.get(f"https://{self.host}/api/queues",
+                               auth=HTTPBasicAuth(self.user, self.password)).json()
+            if not res:
+                self.state = "stopped"
+            else:
+                for item in res:
+                    if item['name'] == self.queue_name and item["consumers"] > 0:
+                        self.state = "running"
+        except Exception as err:
+            self.state = "stopped"
+            _logger.error(f"获取队列状态失败...{traceback.format_exc()}")
 
     @api.constrains('code')
     def _check_python_code(self):
@@ -91,6 +109,7 @@ class RabbitmqSever(models.Model):
             self = self.with_env(self.env(cr=new_cr))
 
             eval_context = self._get_eval_context(self)
+            eval_context['body'] = body
             safe_eval(self.code.strip(), eval_context,
                       mode="exec", nocopy=True)
             new_cr.close()
@@ -116,9 +135,6 @@ class RabbitmqSever(models.Model):
 
         except Exception as err:
             _logger.error(f"创建RabbimtMq客户端失败:{traceback.format_exc()}")
-
-    def test(self):
-        _logger.info("回调方法成功运行>>>>>>>")
 
     def run(self):
         try:
