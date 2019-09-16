@@ -112,6 +112,8 @@ class RabbitmqSever(models.Model):
             eval_context['body'] = body
             safe_eval(self.code.strip(), eval_context,
                       mode="exec", nocopy=True)
+            # committed
+            new_cr.commit()
             new_cr.close()
 
     def get_client(self):
