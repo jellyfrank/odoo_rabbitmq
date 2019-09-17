@@ -11,6 +11,7 @@ from odoo.tools.safe_eval import safe_eval, test_python_expr
 import threading
 import requests
 from requests.auth import HTTPBasicAuth
+import json
 
 
 _logger = logging.getLogger(__name__)
@@ -37,6 +38,37 @@ class RabbitmqSever(models.Model):
     code = fields.Text("回调方法")
     state = fields.Selection(
         [('stopped', '已停止'), ('running', '运行中')], string="状态", compute="_get_state", default="stopped")
+    passive = fields.Boolean("被动", default=False)
+    durable = fields.Boolean("持久化", default=False)
+    auto_delete = fields.Boolean("自动删除", default=False)
+    internal = fields.Boolean("内部使用", default=False)
+
+    def publish(self, body, type="plain"):
+        """
+        发布消息
+        参数：
+        exchange: 交换机
+        body: 消息内容
+        routing_key: 路由关键字
+        type: 消息格式
+        """
+        try:
+            if type == "json":
+                body = json.dumps(body)
+            credential = pika.PlainCredentials(self.user, self.password)
+            conn = pika.BlockingConnection(
+                pika.ConnectionParameters(host=self.host, credentials=credential))
+            channel = conn.channel(
+                self.channel_number if self.channel_number else None)
+            channel.exchange_declare(
+                exchange=self.exchange, exchange_type=self.exchange_type, durable=self.durable, passive=self.passive,
+                auto_delete=self.auto_delete, internal=self.internal)
+            channel.basic_publish(
+                exchange=self.exchange, routing_key=self.routing_key or "", body=body)
+            _logger.info(f"在{self.exchange}发布消息：{body}")
+        except Exception as err:
+            _logger.error(
+                f"在{self.exchange}发布消息：{body}异常：{traceback.format_exc()}")
 
     @api.one
     def _get_state(self):
@@ -125,7 +157,8 @@ class RabbitmqSever(models.Model):
             channel = conn.channel(
                 self.channel_number if self.channel_number else None)
             channel.exchange_declare(
-                exchange=self.exchange, exchange_type=self.exchange_type)
+                exchange=self.exchange, exchange_type=self.exchange_type, durable=self.durable, passive=self.passive,
+                auto_delete=self.auto_delete, internal=self.internal)
             queue_name = self.queue_name if self.queue_name else ""
             result = channel.queue_declare(queue_name, exclusive=True)
             if not queue_name:

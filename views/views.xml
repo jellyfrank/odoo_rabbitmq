@@ -6,7 +6,7 @@
       <field name="arch" type="xml">
         <form string="Server Action">
           <header>
-            <button name="run" string="Run" type="object" class="btn-primary" help="Run this action manually."/>
+            <button name="run" string="Run" type="object" class="btn-primary" help="Run this action manually." attrs="{'invisible':[('type','=','produce')]}"/>
           </header>
           <sheet>
             <div class="oe_title">
@@ -16,8 +16,8 @@
               </h1>
             </div>
             <group name="action_wrapper">
-              <group name="action_content">
-                <field name="model_id"/>
+              <group name="action_content" attrs="{'invisible':[('type','=','produce')]}">
+                <field name="model_id" />
                 <field name="state"/>
               </group>
               <group>
@@ -31,9 +31,13 @@
                 <field name="exchange"/>
                 <field name="exchange_type"/>
                 <field name="queue_name"/>
+                <field name="passive"/>
+                <field name="durable"/>
+                <field name="auto_delete"/>
+                <field name="internal"/>
               </group>
             </group>
-            <notebook>
+            <notebook attrs="{'invisible':[('type','=','produce')]}">
               <page string="Python Code" name="code" autofocus="autofocus">
                 <field name="code" widget="ace" options="{'mode': 'python'}" placeholder="Enter Python code here. Help about Python expression is available in the help tab of this document."/>
               </page>
